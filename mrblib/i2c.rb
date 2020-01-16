@@ -1,10 +1,12 @@
 module PlatoESP32
   class I2C
     def read(cmds, len, type=:as_array)
-      write(cmds)
-      data = _read(len)
-      if type == :as_array
-        data = data.bytes
+      data = nil
+      if write(cmds, false)
+        data = _read(len)
+        if type == :as_array
+          data = data.bytes
+        end
       end
       data
     end

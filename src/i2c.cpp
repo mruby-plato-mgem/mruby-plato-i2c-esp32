@@ -63,6 +63,7 @@ mrb_i2c_read(mrb_state *mrb, mrb_value self)
 {
   mrb_int len, i;
   mrb_value v;
+  char *buf;
   mrb_esp32_i2c *i2c = (mrb_esp32_i2c*)DATA_PTR(self);
 
 #ifndef NO_DEVICE
@@ -71,31 +72,35 @@ mrb_i2c_read(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "i", &len);
 
-  v = mrb_str_buf_new(mrb, len);
-  memset(RSTRING_PTR(v), 0, len);
+  buf = (char*)mrb_malloc(mrb, len);
+  memset(buf, 0, len);
 
   WIRE(i2c)->requestFrom(i2c->addr, len);
   for (i=0; i<len; i++) {
-    RSTRING_PTR(v)[i] = (char)WIRE(i2c)->read();
+    buf[i] = (char)WIRE(i2c)->read();
   }
+  v = mrb_str_new(mrb, buf, len);
+  mrb_free(mrb, buf);
 
   return v;
 }
 
-// I2C#write(data) #=> self
+// I2C#write(data, stop=true) #=> true/false
 static mrb_value
 mrb_i2c_write(mrb_state *mrb, mrb_value self)
 {
   mrb_value data, v;
   uint8_t *buf;
   size_t len, i;
+  mrb_bool stop = true;
+  uint8_t ret;
   mrb_esp32_i2c *i2c = (mrb_esp32_i2c*)DATA_PTR(self);
 
 #ifndef NO_DEVICE
   if (!i2c->i2c) mrb_raise(mrb, E_RUNTIME_ERROR, "I2C device is already closed.");
 #endif
 
-  mrb_get_args(mrb, "o", &data);
+  mrb_get_args(mrb, "o|b", &data, &stop);
 
   if (mrb_string_p(data)) {
     len = RSTRING_LEN(data);
@@ -127,12 +132,12 @@ mrb_i2c_write(mrb_state *mrb, mrb_value self)
   for (i=0; i<len; i++) {
     WIRE(i2c)->write(buf[i]);
   }
-  WIRE(i2c)->endTransmission();
+  ret = WIRE(i2c)->endTransmission((uint8_t)(stop ? 1 : 0));
 #endif
 
   mrb_free(mrb, buf);
 
-  return self;
+  return mrb_bool_value((mrb_bool)(ret == 0));
 }
 
 void
